@@ -1,78 +1,109 @@
 
-import debounce from 'lodash.debounce';
 import './css/styles.css';
-import { fetchCountries } from './fetchCountries';
+import NewsApiService from './fetchPhoto';
 import Notiflix from 'notiflix';
-
-
-const DEBOUNCE_DELAY = 300;
+import SimpleLightbox from "simplelightbox";
+import "simplelightbox/dist/simple-lightbox.min.css";
 
 const refs = {
-    searchInput: document.querySelector('#search-box'),
-    countryList: document.querySelector('.country-list'),
-    countryInfo: document.querySelector('.country-info'),    
+    searchForm: document.querySelector('#search-form'),
+    gallery: document.querySelector('.gallery'),
+    searchInput: document.querySelector('.request'),
+    loadMoreBtn: document.querySelector('.load-more'),     
 }
 
-refs.searchInput.addEventListener('input', debounce(onSearch, DEBOUNCE_DELAY));
+const lightbox = new SimpleLightbox('.gallery a', { captionsData: "alt", captionPosition: "bottom", captionDelay: 250 });
+
+const newsApiService = new NewsApiService();
+
+refs.searchForm.addEventListener('submit', onSearch);
+refs.loadMoreBtn.addEventListener('click', onLoadMore);
+
+refs.loadMoreBtn.classList.add('is-hiden');
+
+
  
 function onSearch(event) {
-    event.preventDefault();
-    const name = event.target.value.trim();
-
-    if (name === "") {
-        clear();
-        return;
-    }
-  
-    fetchCountries(name)
-        .then(onCreatCard)
-        .catch(onError);
-    
-};
-
-function onCreatCard(country) {
-    console.log(country) 
-    
-    if (country.length > 10) { 
-        clear();
-        Notiflix.Notify.info('Too many matches found. Please enter a more specific name.');
-        }
-
-    else if (country.length === 1) {
-        clear();
-        const descrCountry = country.map(({ name, capital, population, flags, languages }) => {
-            return `
-    <div>
-    <h1> <img src="${flags.svg}" alt="flag" width='30' height ='30' >${name.official}</h1>  
-    <p>Сapital: ${capital}</p>
-    <p>Population:${population}</p>
-    <p>Languages: ${Object.values(languages)}</p>
-    </div>
-    `;
-        }).join("");
+  event.preventDefault();
         
-    refs.countryInfo.insertAdjacentHTML('beforeend', descrCountry);
-  }  
+  newsApiService.query = event.currentTarget.elements.query.value.trim();
+  newsApiService.resetPage();
+  console.log(newsApiService.searchQuery);
+
+  clear();
+
+  if (newsApiService.searchQuery === "") {
+    return;
+  }
+  
+  newsApiService.fetchPhoto()
+    .then((response) => {
+      if (response.hits.length === 0) {
+        return Notiflix.Notify.failure(`Sorry, there are no images matching your search query. Please try again.`);
+      }
+      else {
+        Notiflix.Notify.success(`Hooray! We found ${response.totalHits} images.`);
+        onCreatCard(response)
+      }
+    })
+
+    // onCreatCard(response)
+    // .catch(onError);
+}; 
+   
 
 
-    else {
-        clear();
-        const listCountry = country.map(({ name, flags }) => {
-            return `
-    <li><img src="${flags.svg}" alt="flag" width='20' height ='20' >${name.official}</li>`;
-        }).join("");
-       refs.countryList.insertAdjacentHTML('beforeend', listCountry); }
+function onCreatCard(response) {
+   
+  const card = response.hits.map(({ webformatURL, largeImageURL, tags, likes, views, comments, downloads }) => 
+            
+            `
+            <a href = "${largeImageURL}">
+  <img src="${webformatURL}" alt="${tags}" class = "image" loading="lazy" />
+  <div class="info">
+    <p class="info-item">
+      <b>Likes: ${likes}</b>
+    </p>
+    <p class="info-item">
+      <b>Views: ${views}</b>
+    </p>
+    <p class="info-item">
+      <b>Comments: ${comments}</b>
+    </p>
+    <p class="info-item">
+      <b>Downloads: ${downloads}</b>
+    </p>
+  </div>
+  </a>
+`
+        ).join('');
+  refs.gallery.insertAdjacentHTML("beforeend", card);
+  if (response.totalHits > 40) {
+    refs.loadMoreBtn.classList.remove('is-hiden');
+    lightbox.refresh();
+          
+  }
+   
+ 
 }
 
-function onError(error) {
-    if (error) {
-        Notiflix.Notify.failure("Oops, there is no country with that name");
-    }
-}
+
+function onLoadMore()  {   
+newsApiService.fetchPhoto()
+  .then((response) => {
+    onCreatCard(response);
+
+    const totalPage = response.totalHits / 40;
+    if (newsApiService.page >= totalPage) {
+      refs.loadMoreBtn.classList.add('is-hiden');
+      return Notiflix.Notify.failure("We're sorry, but you've reached the end of search results.");
+    }    
+})
+};
 
 
 function clear() {
-    refs.countryInfo.innerHTML = "";
-    refs.countryList.innerHTML = "";    
+  refs.gallery.innerHTML = "";  
+  
 };
 
