@@ -23,41 +23,39 @@ refs.loadMoreBtn.classList.add('is-hiden');
 
 
  
-function onSearch(event) {
+async function onSearch(event) {
   event.preventDefault();
         
-  newsApiService.query = event.currentTarget.elements.query.value.trim();
+  newsApiService.searchQuery = event.currentTarget.elements.query.value.trim();
   newsApiService.resetPage();
   console.log(newsApiService.searchQuery);
 
   clear();
+  refs.loadMoreBtn.classList.add('is-hiden');
 
   if (newsApiService.searchQuery === "") {
     return;
   }
   
-  newsApiService.fetchPhoto()
+  await newsApiService.fetchPhoto()
     .then((response) => {
       if (response.hits.length === 0) {
         return Notiflix.Notify.failure(`Sorry, there are no images matching your search query. Please try again.`);
+        
       }
       else {
         Notiflix.Notify.success(`Hooray! We found ${response.totalHits} images.`);
         onCreatCard(response)
       }
-    })
-
-    // onCreatCard(response)
-    // .catch(onError);
+    }).catch(err => err.message);
 }; 
    
 
 
 function onCreatCard(response) {
    
-  const card = response.hits.map(({ webformatURL, largeImageURL, tags, likes, views, comments, downloads }) => 
-            
-            `
+   const card = response.hits.map(({ webformatURL, largeImageURL, tags, likes, views, comments, downloads }) => 
+   `
             <a href = "${largeImageURL}">
   <img src="${webformatURL}" alt="${tags}" class = "image" loading="lazy" />
   <div class="info">
@@ -80,16 +78,13 @@ function onCreatCard(response) {
   refs.gallery.insertAdjacentHTML("beforeend", card);
   if (response.totalHits > 40) {
     refs.loadMoreBtn.classList.remove('is-hiden');
-    lightbox.refresh();
-          
-  }
-   
- 
+    lightbox.refresh();         
+  } 
 }
 
 
-function onLoadMore()  {   
-newsApiService.fetchPhoto()
+async function onLoadMore()  {   
+await newsApiService.fetchPhoto()
   .then((response) => {
     onCreatCard(response);
 
@@ -97,13 +92,12 @@ newsApiService.fetchPhoto()
     if (newsApiService.page >= totalPage) {
       refs.loadMoreBtn.classList.add('is-hiden');
       return Notiflix.Notify.failure("We're sorry, but you've reached the end of search results.");
-    }    
-})
+    }
+  })
 };
 
 
 function clear() {
   refs.gallery.innerHTML = "";  
-  
 };
 
